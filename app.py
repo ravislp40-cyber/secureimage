@@ -13,11 +13,9 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
 DB_PATH = os.path.join(BASE_DIR, 'database.db')
 
-ALLOWED_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.pdf')
-
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# ✅ FIX: create folder safely (NO ERROR)
+# ✅ ONLY ONE SAFE FOLDER CREATION
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # ---------------- DATABASE ----------------
@@ -70,8 +68,8 @@ def create():
 
     for file in files:
         if file and file.filename != "":
-            if file.filename.lower().endswith(ALLOWED_EXTENSIONS):
-
+            if file.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.pdf')):
+                
                 filename = str(uuid.uuid4()) + "_" + secure_filename(file.filename)
                 filepath = os.path.join(UPLOAD_FOLDER, filename)
 
@@ -83,7 +81,6 @@ def create():
 
     files_string = ",".join(filenames)
 
-    # Hash password
     hashed_password = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
     c.execute("INSERT INTO posts VALUES (?, ?, ?)",
@@ -114,7 +111,7 @@ def open_post():
 
     return "❌ Wrong Password"
 
-# ---------------- VIEW FILE ----------------
+# ---------------- FILE VIEW ----------------
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
     return send_from_directory(UPLOAD_FOLDER, filename)
