@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Saved</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .center {
+            text-align: center;
+        }
+
+        .single-img {
+            margin-top: 20px;
+        }
+
+        .single-img img {
+            width: 100%;
+            max-height: 250px;
+            object-fit: cover;
+            border-radius: 12px;
+        }
+
+        .back-btn {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container center">
+    <h2>✅ Saved Successfully</h2>
+    <p>Use your password to open your secure content</p>
+
+    <!-- 🔥 Single random image -->
+    <div class="single-img">
+    <img id="randomImage">
+</div>
+
+<script>
+    const images = [
+        "https://th.bing.com/th/id/OIP.73z1UPCp_8H5L_vOev8U0AHaEK?w=330&h=185&c=7&r=0&o=7",
+        "https://th.bing.com/th/id/OIP.xgonOfNjQWXsAvICmPLGdgHaHa?w=115&h=183&c=7&r=0&o=7",
+        "https://media.tenor.com/TUwFSO8bKj4AAAAM/chikkanna-kannada-comedy.gif",
+        "https://media.tenor.com/Dpc_QB5RBW0AAAAM/uppi-kannada.gif",
+        "https://i.makeagif.com/media/2-13-2016/USo8jK.gif"
+    ];
+
+    const randomIndex = Math.floor(Math.random() * images.length);
+    document.getElementById("randomImage").src = images[randomIndex];
+</script>
+
+</body>
+</html>
