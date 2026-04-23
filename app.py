@@ -7,18 +7,23 @@ from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
-# ---------------- CONFIG ----------------
-UPLOAD_FOLDER = 'uploads'
+# ---------------- PATH SETUP (VERY IMPORTANT FOR RENDER) ----------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
+DB_PATH = os.path.join(BASE_DIR, 'database.db')
+
 ALLOWED_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.pdf')
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
+# Create uploads folder if not exists
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
 # ---------------- DATABASE ----------------
 def init_db():
-    conn = sqlite3.connect('database.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS posts (
                     text TEXT,
@@ -45,12 +50,12 @@ def create():
     if not password:
         return "❌ Password required"
 
-    conn = sqlite3.connect('database.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT * FROM posts")
     all_posts = c.fetchall()
 
-    # Check duplicate password safely
+    # Prevent duplicate password
     for post in all_posts:
         try:
             stored_hash = post[2].encode()
@@ -66,14 +71,15 @@ def create():
         if file and file.filename != "":
             if file.filename.lower().endswith(ALLOWED_EXTENSIONS):
                 filename = str(uuid.uuid4()) + "_" + secure_filename(file.filename)
-                file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(filepath)
                 filenames.append(filename)
             else:
                 return "❌ Only JPG, PNG, PDF allowed"
 
     files_string = ",".join(filenames)
 
-    # Store password hash as string
+    # Store password hash safely
     hashed_password = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
     c.execute("INSERT INTO posts VALUES (?, ?, ?)",
@@ -81,7 +87,6 @@ def create():
     conn.commit()
     conn.close()
 
-    # 👉 Show success page (not plain text)
     return render_template("success.html")
 
 # ---------------- OPEN ----------------
@@ -89,7 +94,7 @@ def create():
 def open_post():
     password = request.form.get('password')
 
-    conn = sqlite3.connect('database.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT * FROM posts")
     posts = c.fetchall()
