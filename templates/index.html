@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Secure Vault</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script>
+        function showTab(tab) {
+            document.getElementById("createBox").style.display = "none";
+            document.getElementById("openBox").style.display = "none";
+            document.getElementById(tab).style.display = "block";
+        }
+    </script>
+</head>
+<body>
+
+<div class="container">
+    <h2>🔐 Secure Vault</h2>
+
+    <div class="tabs">
+        <button onclick="showTab('createBox')">Create</button>
+        <button onclick="showTab('openBox')">Open</button>
+    </div>
+
+    <div id="createBox">
+        <form action="/create" method="POST" enctype="multipart/form-data">
+            <textarea name="text" placeholder="Enter text"></textarea>
+            <input type="file" name="file" multiple>
+            <input type="password" name="password" placeholder="Set Password">
+            <button class="main-btn">Save</button>
+        </form>
+    </div>
+
+    <div id="openBox" style="display:none;">
+        <form action="/open" method="POST">
+            <input type="password" name="password" placeholder="Enter Password">
+            <button class="main-btn">Open</button>
+        </form>
+    </div>
+</div>
+
+</body>
+</html>
