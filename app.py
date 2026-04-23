@@ -7,7 +7,7 @@ from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
-# ---------------- PATH SETUP (VERY IMPORTANT FOR RENDER) ----------------
+# ---------------- PATH SETUP ----------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
@@ -17,13 +17,15 @@ ALLOWED_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.pdf')
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# Create uploads folder if not exists
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
+# 🔥 Ensure uploads folder exists
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # ---------------- DATABASE ----------------
+def get_db():
+    return sqlite3.connect(DB_PATH)
+
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db()
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS posts (
                     text TEXT,
@@ -50,12 +52,12 @@ def create():
     if not password:
         return "❌ Password required"
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db()
     c = conn.cursor()
     c.execute("SELECT * FROM posts")
     all_posts = c.fetchall()
 
-    # Prevent duplicate password
+    # 🔒 Prevent duplicate password
     for post in all_posts:
         try:
             stored_hash = post[2].encode()
@@ -70,16 +72,25 @@ def create():
     for file in files:
         if file and file.filename != "":
             if file.filename.lower().endswith(ALLOWED_EXTENSIONS):
+
                 filename = str(uuid.uuid4()) + "_" + secure_filename(file.filename)
+
                 filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+
+                # 🔥 Ensure folder exists again (safety)
+                os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+                print("Saving file to:", filepath)
+
                 file.save(filepath)
                 filenames.append(filename)
+
             else:
                 return "❌ Only JPG, PNG, PDF allowed"
 
     files_string = ",".join(filenames)
 
-    # Store password hash safely
+    # 🔐 Hash password
     hashed_password = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
     c.execute("INSERT INTO posts VALUES (?, ?, ?)",
@@ -94,7 +105,7 @@ def create():
 def open_post():
     password = request.form.get('password')
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db()
     c = conn.cursor()
     c.execute("SELECT * FROM posts")
     posts = c.fetchall()
@@ -103,9 +114,11 @@ def open_post():
     for post in posts:
         try:
             stored_hash = post[2].encode()
+
             if bcrypt.checkpw(password.encode(), stored_hash):
                 files = post[1].split(",") if post[1] else []
                 return render_template('view.html', text=post[0], files=files)
+
         except:
             continue
 
