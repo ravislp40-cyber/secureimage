@@ -17,7 +17,7 @@ ALLOWED_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.pdf')
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# 🔥 Ensure uploads folder exists
+# ✅ FIX: create folder safely (NO ERROR)
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # ---------------- DATABASE ----------------
@@ -55,15 +55,14 @@ def create():
     conn = get_db()
     c = conn.cursor()
     c.execute("SELECT * FROM posts")
-    all_posts = c.fetchall()
+    posts = c.fetchall()
 
-    # 🔒 Prevent duplicate password
-    for post in all_posts:
+    # Prevent duplicate password
+    for post in posts:
         try:
-            stored_hash = post[2].encode()
-            if bcrypt.checkpw(password.encode(), stored_hash):
+            if bcrypt.checkpw(password.encode(), post[2].encode()):
                 conn.close()
-                return "❌ Password already used. Try another."
+                return "❌ Password already used"
         except:
             continue
 
@@ -74,13 +73,7 @@ def create():
             if file.filename.lower().endswith(ALLOWED_EXTENSIONS):
 
                 filename = str(uuid.uuid4()) + "_" + secure_filename(file.filename)
-
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-
-                # 🔥 Ensure folder exists again (safety)
-                os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-
-                print("Saving file to:", filepath)
+                filepath = os.path.join(UPLOAD_FOLDER, filename)
 
                 file.save(filepath)
                 filenames.append(filename)
@@ -90,7 +83,7 @@ def create():
 
     files_string = ",".join(filenames)
 
-    # 🔐 Hash password
+    # Hash password
     hashed_password = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
     c.execute("INSERT INTO posts VALUES (?, ?, ?)",
@@ -113,12 +106,9 @@ def open_post():
 
     for post in posts:
         try:
-            stored_hash = post[2].encode()
-
-            if bcrypt.checkpw(password.encode(), stored_hash):
+            if bcrypt.checkpw(password.encode(), post[2].encode()):
                 files = post[1].split(",") if post[1] else []
                 return render_template('view.html', text=post[0], files=files)
-
         except:
             continue
 
@@ -127,16 +117,12 @@ def open_post():
 # ---------------- VIEW FILE ----------------
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    return send_from_directory(UPLOAD_FOLDER, filename)
 
 # ---------------- DOWNLOAD ----------------
 @app.route('/download/<filename>')
 def download_file(filename):
-    return send_from_directory(
-        app.config['UPLOAD_FOLDER'],
-        filename,
-        as_attachment=True
-    )
+    return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
 
 # ---------------- RUN ----------------
 if __name__ == '__main__':
