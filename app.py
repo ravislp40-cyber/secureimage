@@ -7,23 +7,22 @@ from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
-# ---------- PATH SETUP ----------
+# ---------- CONFIG ----------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 DB_PATH = os.path.join(BASE_DIR, "database.db")
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5MB
 
 # Safe folder creation
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 ALLOWED_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.pdf')
 
-
 # ---------- DATABASE ----------
 def get_db():
     return sqlite3.connect(DB_PATH)
-
 
 def init_db():
     conn = get_db()
@@ -38,15 +37,12 @@ def init_db():
     conn.commit()
     conn.close()
 
-
 init_db()
-
 
 # ---------- HOME ----------
 @app.route('/')
 def index():
     return render_template("index.html")
-
 
 # ---------- CREATE ----------
 @app.route('/create', methods=['POST'])
@@ -73,8 +69,9 @@ def create():
             else:
                 return "❌ Only JPG, PNG, PDF allowed"
 
-    # Save data
     files_string = ",".join(filenames)
+
+    # 🔐 Safe hash (stored as string)
     hashed_password = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
     conn = get_db()
@@ -86,11 +83,13 @@ def create():
 
     return render_template("success.html")
 
-
 # ---------- OPEN ----------
 @app.route('/open', methods=['POST'])
 def open_post():
     password = request.form.get("password")
+
+    if not password:
+        return "❌ Enter password"
 
     conn = get_db()
     c = conn.cursor()
@@ -100,26 +99,31 @@ def open_post():
 
     for post in posts:
         try:
-            if bcrypt.checkpw(password.encode(), post[2].encode()):
+            stored_hash = post[2]
+
+            # ✅ FIX: handle both string & bytes
+            if isinstance(stored_hash, str):
+                stored_hash = stored_hash.encode()
+
+            if bcrypt.checkpw(password.encode(), stored_hash):
                 files = post[1].split(",") if post[1] else []
                 return render_template("view.html", text=post[0], files=files)
-        except:
+
+        except Exception as e:
+            print("Error:", e)
             continue
 
     return "❌ Wrong Password"
 
-
-# ---------- FILE VIEW ----------
+# ---------- VIEW FILE ----------
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
     return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
-
 
 # ---------- DOWNLOAD ----------
 @app.route('/download/<filename>')
 def download_file(filename):
     return send_from_directory(app.config["UPLOAD_FOLDER"], filename, as_attachment=True)
-
 
 # ---------- RUN ----------
 if __name__ == "__main__":
