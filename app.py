@@ -13,9 +13,8 @@ UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 DB_PATH = os.path.join(BASE_DIR, "database.db")
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5MB
+app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 50MB total request
 
-# Safe folder creation
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 ALLOWED_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.pdf')
@@ -54,6 +53,21 @@ def create():
     if not password:
         return "❌ Password required"
 
+    if not files or files[0].filename == "":
+        return "❌ No files selected"
+
+    print("FILES COUNT:", len(files))
+
+    # ---- total size check ----
+    total_size = 0
+    for file in files:
+        file.seek(0, os.SEEK_END)
+        total_size += file.tell()
+        file.seek(0)
+
+    if total_size > 100* 1024 * 1024:
+        return "❌ Total file size must be under 50MB"
+
     filenames = []
 
     for file in files:
@@ -71,7 +85,6 @@ def create():
 
     files_string = ",".join(filenames)
 
-    # 🔐 Safe hash (stored as string)
     hashed_password = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
     conn = get_db()
@@ -100,22 +113,18 @@ def open_post():
     for post in posts:
         try:
             stored_hash = post[2]
-
-            # ✅ FIX: handle both string & bytes
             if isinstance(stored_hash, str):
                 stored_hash = stored_hash.encode()
 
             if bcrypt.checkpw(password.encode(), stored_hash):
                 files = post[1].split(",") if post[1] else []
                 return render_template("view.html", text=post[0], files=files)
-
-        except Exception as e:
-            print("Error:", e)
+        except:
             continue
 
     return "❌ Wrong Password"
 
-# ---------- VIEW FILE ----------
+# ---------- VIEW ----------
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
     return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
