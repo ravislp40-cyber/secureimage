@@ -1,17 +1,14 @@
 import os
 import uuid
-import sqlite3
 import bcrypt
+import psycopg2
 from flask import Flask, render_template, request, send_from_directory
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
 # ---------- CONFIG ----------
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
-DB_PATH = os.path.join(BASE_DIR, "database.db")
-
+UPLOAD_FOLDER = "uploads"
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50MB
 
@@ -20,20 +17,24 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 ALLOWED_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.pdf')
 
 # ---------- DATABASE ----------
+DATABASE_URL = os.getenv("DATABASE_URL")
+
 def get_db():
-    return sqlite3.connect(DB_PATH)
+    return psycopg2.connect(DATABASE_URL)
 
 def init_db():
     conn = get_db()
-    c = conn.cursor()
-    c.execute("""
+    cur = conn.cursor()
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS posts (
+            id SERIAL PRIMARY KEY,
             text TEXT,
             files TEXT,
             password TEXT
         )
     """)
     conn.commit()
+    cur.close()
     conn.close()
 
 init_db()
@@ -50,9 +51,8 @@ def create():
     password = request.form.get("password")
     files = request.files.getlist("file")
 
-    # 🔥 VALIDATION (no empty submit)
     if (not text or text.strip() == "") and (not files or files[0].filename == ""):
-        return "❌ Please enter text or upload at least one file"
+        return "❌ Add text or upload file"
 
     if not password:
         return "❌ Password required"
@@ -60,7 +60,7 @@ def create():
     filenames = []
     total_size = 0
 
-    # ---- check total file size ----
+    # size check
     for file in files:
         if file:
             file.seek(0, os.SEEK_END)
@@ -68,9 +68,9 @@ def create():
             file.seek(0)
 
     if total_size > 50 * 1024 * 1024:
-        return "❌ Total file size must be under 50MB"
+        return "❌ Max total size 50MB"
 
-    # ---- save files ----
+    # save files
     for file in files:
         if file and file.filename != "":
             if file.filename.lower().endswith(ALLOWED_EXTENSIONS):
@@ -89,10 +89,15 @@ def create():
     hashed_password = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
     conn = get_db()
-    c = conn.cursor()
-    c.execute("INSERT INTO posts VALUES (?, ?, ?)",
-              (text, files_string, hashed_password))
+    cur = conn.cursor()
+
+    cur.execute(
+        "INSERT INTO posts (text, files, password) VALUES (%s, %s, %s)",
+        (text, files_string, hashed_password)
+    )
+
     conn.commit()
+    cur.close()
     conn.close()
 
     return render_template("success.html")
@@ -106,17 +111,17 @@ def open_post():
         return "❌ Enter password"
 
     conn = get_db()
-    c = conn.cursor()
-    c.execute("SELECT * FROM posts")
-    posts = c.fetchall()
+    cur = conn.cursor()
+
+    cur.execute("SELECT text, files, password FROM posts")
+    posts = cur.fetchall()
+
+    cur.close()
     conn.close()
 
     for post in posts:
         try:
-            stored_hash = post[2]
-
-            if isinstance(stored_hash, str):
-                stored_hash = stored_hash.encode()
+            stored_hash = post[2].encode()
 
             if bcrypt.checkpw(password.encode(), stored_hash):
                 files = post[1].split(",") if post[1] else []
@@ -125,7 +130,7 @@ def open_post():
         except:
             continue
 
-    return "❌ Wrong Password"
+    return "❌ Wrong password"
 
 # ---------- VIEW FILE ----------
 @app.route('/uploads/<filename>')
