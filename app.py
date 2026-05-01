@@ -13,7 +13,7 @@ UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 DB_PATH = os.path.join(BASE_DIR, "database.db")
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 50MB total request
+app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50MB
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -50,26 +50,27 @@ def create():
     password = request.form.get("password")
     files = request.files.getlist("file")
 
+    # 🔥 VALIDATION (no empty submit)
+    if (not text or text.strip() == "") and (not files or files[0].filename == ""):
+        return "❌ Please enter text or upload at least one file"
+
     if not password:
         return "❌ Password required"
 
-    if not files or files[0].filename == "":
-        return "❌ No files selected"
-
-    print("FILES COUNT:", len(files))
-
-    # ---- total size check ----
+    filenames = []
     total_size = 0
-    for file in files:
-        file.seek(0, os.SEEK_END)
-        total_size += file.tell()
-        file.seek(0)
 
-    if total_size > 100* 1024 * 1024:
+    # ---- check total file size ----
+    for file in files:
+        if file:
+            file.seek(0, os.SEEK_END)
+            total_size += file.tell()
+            file.seek(0)
+
+    if total_size > 50 * 1024 * 1024:
         return "❌ Total file size must be under 50MB"
 
-    filenames = []
-
+    # ---- save files ----
     for file in files:
         if file and file.filename != "":
             if file.filename.lower().endswith(ALLOWED_EXTENSIONS):
@@ -113,18 +114,20 @@ def open_post():
     for post in posts:
         try:
             stored_hash = post[2]
+
             if isinstance(stored_hash, str):
                 stored_hash = stored_hash.encode()
 
             if bcrypt.checkpw(password.encode(), stored_hash):
                 files = post[1].split(",") if post[1] else []
                 return render_template("view.html", text=post[0], files=files)
+
         except:
             continue
 
     return "❌ Wrong Password"
 
-# ---------- VIEW ----------
+# ---------- VIEW FILE ----------
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
     return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
